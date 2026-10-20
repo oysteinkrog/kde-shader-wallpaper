@@ -17,6 +17,8 @@
 #include "models/shaderlistmodel.h"
 #include "models/categorymodel.h"
 
+#include <QJSEngine>
+
 void ShaderWallpaperPlugin::registerTypes(const char *uri)
 {
     Q_ASSERT(QLatin1String(uri) == QLatin1String("online.knowmad.shaderwallpaper"));
@@ -49,6 +51,8 @@ void ShaderWallpaperPlugin::registerTypes(const char *uri)
             Q_UNUSED(engine)
             Q_UNUSED(scriptEngine)
             static PlmGreeterSetup instance;
+            // Keep the engine from deleting the static instance.
+            QJSEngine::setObjectOwnership(&instance, QJSEngine::CppOwnership);
             return &instance;
         });
 
@@ -57,7 +61,13 @@ void ShaderWallpaperPlugin::registerTypes(const char *uri)
         [](QQmlEngine *engine, QJSEngine *scriptEngine) -> QObject * {
             Q_UNUSED(engine)
             Q_UNUSED(scriptEngine)
-            return ShaderLibrary::instance();
+            // The instance is shared by every engine in the process. Without
+            // CppOwnership the first engine to be destroyed deletes it, and
+            // later wallpapers see a null singleton and fall back to the
+            // default shader.
+            ShaderLibrary *library = ShaderLibrary::instance();
+            QJSEngine::setObjectOwnership(library, QJSEngine::CppOwnership);
+            return library;
         });
 }
 
